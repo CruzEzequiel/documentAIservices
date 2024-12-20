@@ -48,7 +48,7 @@ Dado el siguiente archivo PDF, determina si corresponde a un documento de tipo {
 - **Comprobante de domicilio fiscal**: puede ser un recibo bancario, de teléfono, luz, agua u otro servicio, siempre que contenga la dirección del cliente.
 - **CURP**: Clave Única de Registro de Población.
 
-Si el archivo corresponde al tipo de documento **{tipo_doc}** o alguna de sus representaciones, responde con 'True'. Si no, responde con el tipo de documento que crees que es, basándote en las representaciones proporcionadas.
+Si el archivo corresponde al tipo de documento **{tipo_doc}** o alguna de sus representaciones, responde con 'True'. Si no corresponde, responde en español con el tipo de documento que crees que es, basándote en las representaciones proporcionadas.
 """
 
 # Configurar GeminiAI
