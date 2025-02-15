@@ -121,3 +121,57 @@ async def analyze_pdf(tipo_doc: str, file: UploadFile = File(...), _: None = Dep
                 os.remove(pdf_path)
         except Exception as local_error:
             print(f"Error al eliminar archivo local: {local_error}")
+
+
+EXTRACT_INFO_TEMPLATE = """ Extrae toda la información estructurada posible de este documento {tipo_doc} y conviértela en un array de objetos con el siguiente formato:
+
+[
+    {{ "name": "Nombre del Campo", "value": "valor extraído" }},
+    {{ "name": "Otro Campo", "value": "otro valor extraído" }}
+];
+
+La extracción debe ser precisa y mantener el contexto de cada entidad dentro del documento. La respuesta debe ser exclusivamente el JSON, sin explicaciones, comentarios ni texto adicional."""
+
+
+# Endpoint protegido
+@app.post("/extract_pdf/{tipo_doc}")
+async def extract_pdf(tipo_doc: str, file: UploadFile = File(...), _: None = Depends(validate_access_token)):
+    try:
+        # Guardar el archivo PDF subido temporalmente
+        pdf_path = os.path.join(UPLOAD_DIR, file.filename)
+        with open(pdf_path, "wb") as buffer:
+            buffer.write(await file.read())
+        
+        # Subir el archivo PDF a Gemini
+        uploaded_file = genai.upload_file(pdf_path)
+        
+        # Crear el prompt para la API de Gemini
+        prompt = EXTRACT_INFO_TEMPLATE.format(tipo_doc=tipo_doc)
+        
+        # Consultar la API de Gemini para analizar el archivo
+        model = genai.GenerativeModel(MODEL)
+        response = model.generate_content([prompt, uploaded_file])
+        
+        # Determinar si la clasificación es "True" o "False"
+        
+        return JSONResponse(content={
+            "tipo_doc": tipo_doc,
+            "extracted": response.text
+        })
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")
+    finally:
+        # Eliminar archivo en Gemini
+        try:
+            if 'uploaded_file' in locals():
+                uploaded_file.delete()
+        except Exception as gemini_error:
+            print(f"Error al eliminar archivo en Gemini: {gemini_error}")
+        
+        # Eliminar archivo local
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except Exception as local_error:
+            print(f"Error al eliminar archivo local: {local_error}")
