@@ -130,6 +130,76 @@ EXTRACT_INFO_TEMPLATE = """ Extrae toda la información estructurada posible de 
     {{ "name": "Otro Campo", "value": "otro valor extraído" }}
 ];
 
+si encuentras estos datos devuélvelos con el nombre indicado en esta sección. **
+
+    solicitante: Nombre de la empresa o persona que solicita el crédito.
+
+    rfc: Registro Federal de Contribuyentes del solicitante.
+
+    pais_registro: País donde está registrada la empresa.
+
+    filtro_pais: Restricción sobre el país de constitución de la empresa.
+
+    fecha_constitucion: Fecha en que se constituyó la empresa.
+
+    tipo_producto: Tipo de producto financiero solicitado.
+
+    tipo_credito: Tipo de crédito solicitado (ejemplo: Revolvente, Simple, etc.).
+
+    destino: Uso que se dará al crédito.
+
+    monto_moneda: Monto solicitado y la moneda en la que se expresa.
+
+    fuente_pago: Origen de los fondos con los que se pagará el crédito.
+
+    plazo_credito: Duración del crédito en años o meses.
+
+    periodo_gracia: Tiempo en el que no se requerirá pago del crédito.
+
+    periodicidad_pagos: Frecuencia con la que se realizarán los pagos (mensual, trimestral, etc.).
+
+    garantias: Tipo de garantía ofrecida para respaldar el crédito.
+
+    obligado_solidario: Persona o entidad que garantiza el crédito junto con el solicitante.
+
+    credito_sindicado: Indica si el crédito es compartido entre varias instituciones financieras.
+
+    fecha_consulta: Fecha en que se realizó la consulta al buró de crédito.
+
+    mop: Nivel de cumplimiento de pagos en buró de crédito.
+
+    calificacion_cartera: Clasificación del crédito en términos de riesgo.
+
+    tiene_claves_prevencion: Indica si el buró reporta claves de prevención.
+
+    atrasos_credito: Indica si el solicitante ha tenido retrasos en pagos.
+
+    evidencia_incumplimiento: Indica si hay evidencia de incumplimiento de pagos.
+
+    incidencia_legal: Indica si hay registros legales en buró de crédito.
+
+    descripcion_incidencia: Descripción de cualquier incidencia legal.
+
+    tiene_credito_nafin: Indica si el solicitante ya tiene un crédito con Nafin.
+
+    detalle_empresas: Información sobre empresas relacionadas con el solicitante.
+
+    investigacion_previa: Resultado de investigaciones previas sobre el solicitante.
+
+    pep_involucrado: Indica si hay Personas Políticamente Expuestas involucradas.
+
+    detalles_cargos: Detalles sobre cargos políticos o legales del solicitante.
+
+    actividades_riesgo: Indica si el solicitante participa en actividades de alto riesgo.
+
+    calificacion_experta: Evaluación del crédito según expertos.
+
+    categorizacion_saras: Clasificación del crédito en el sistema SARAS.
+
+    anexo1: Información complementaria relevante.
+
+    anexo2: Información adicional aplicable. **
+
 La extracción debe ser precisa y mantener el contexto de cada entidad dentro del documento. La respuesta debe ser exclusivamente el JSON, sin explicaciones, comentarios ni texto adicional."""
 
 
