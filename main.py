@@ -245,3 +245,30 @@ async def extract_pdf(tipo_doc: str, file: UploadFile = File(...), _: None = Dep
                 os.remove(pdf_path)
         except Exception as local_error:
             print(f"Error al eliminar archivo local: {local_error}")
+
+
+@app.post("/analyze_info")
+async def analyze_info(data: dict, _: None = Depends(validate_access_token)):
+    # Validación manual de datos
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Los datos deben ser un diccionario.")
+    
+    prompt = data.get("prompt")
+    contexto = data.get("contexto")
+
+    if not isinstance(prompt, str) or not isinstance(contexto, str):
+        raise HTTPException(status_code=400, detail="Los campos 'prompt' y 'contexto' deben ser cadenas de texto.")
+
+    try:
+        # Crear el prompt para la API de Gemini
+        full_prompt = ANALYZE_PROMPT.format(prompt=prompt, contexto=contexto)
+        
+        # Consultar la API de Gemini para analizar la información
+        model = genai.GenerativeModel(MODEL)
+        response = model.generate_content([full_prompt])
+        
+        return {"summary": response.text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud: {str(e)}")
+    
+ANALYZE_PROMPT = "Contexto: {contexto}\nPregunta: {prompt}"
