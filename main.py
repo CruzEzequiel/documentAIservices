@@ -271,4 +271,4 @@ async def analyze_info(data: dict, _: None = Depends(validate_access_token)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud: {str(e)}")
     
-ANALYZE_PROMPT = "Contexto: {contexto}\nPregunta: {prompt}"
+ANALYZE_PROMPT = "Usa únicamente la información proporcionada para responder. No hagas suposiciones.\n\nContexto: {contexto}\nPregunta: {prompt}"
