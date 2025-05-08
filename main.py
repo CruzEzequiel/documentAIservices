@@ -1,9 +1,15 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Header, status
+import io
+import tempfile
+from fastapi import Body, FastAPI, File, Query, UploadFile, HTTPException, Depends, Header, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
+import httpx
+from pydantic import BaseModel
+import requests
+
 
 load_dotenv()
 
@@ -123,129 +129,6 @@ async def analyze_pdf(tipo_doc: str, file: UploadFile = File(...), _: None = Dep
             print(f"Error al eliminar archivo local: {local_error}")
 
 
-EXTRACT_INFO_TEMPLATE = """ Extrae toda la información estructurada posible de este documento {tipo_doc} y conviértela en un array de objetos con el siguiente formato:
-
-[
-    {{ "name": "Nombre del Campo", "value": "valor extraído" }},
-    {{ "name": "Otro Campo", "value": "otro valor extraído" }}
-];
-
-si encuentras estos datos devuélvelos con el nombre indicado en esta sección. **
-
-    solicitante: Nombre de la empresa o persona que solicita el crédito.
-
-    rfc: Registro Federal de Contribuyentes del solicitante.
-
-    pais_registro: País donde está registrada la empresa.
-
-    filtro_pais: Restricción sobre el país de constitución de la empresa.
-
-    fecha_constitucion: Fecha en que se constituyó la empresa.
-
-    tipo_producto: Tipo de producto financiero solicitado.
-
-    tipo_credito: Tipo de crédito solicitado (ejemplo: Revolvente, Simple, etc.).
-
-    destino: Uso que se dará al crédito.
-
-    monto_moneda: Monto solicitado y la moneda en la que se expresa.
-
-    fuente_pago: Origen de los fondos con los que se pagará el crédito.
-
-    plazo_credito: Duración del crédito en años o meses.
-
-    periodo_gracia: Tiempo en el que no se requerirá pago del crédito.
-
-    periodicidad_pagos: Frecuencia con la que se realizarán los pagos (mensual, trimestral, etc.).
-
-    garantias: Tipo de garantía ofrecida para respaldar el crédito.
-
-    obligado_solidario: Persona o entidad que garantiza el crédito junto con el solicitante.
-
-    credito_sindicado: Indica si el crédito es compartido entre varias instituciones financieras.
-
-    fecha_consulta: Fecha en que se realizó la consulta al buró de crédito.
-
-    mop: Nivel de cumplimiento de pagos en buró de crédito.
-
-    calificacion_cartera: Clasificación del crédito en términos de riesgo.
-
-    tiene_claves_prevencion: Indica si el buró reporta claves de prevención.
-
-    atrasos_credito: Indica si el solicitante ha tenido retrasos en pagos.
-
-    evidencia_incumplimiento: Indica si hay evidencia de incumplimiento de pagos.
-
-    incidencia_legal: Indica si hay registros legales en buró de crédito.
-
-    descripcion_incidencia: Descripción de cualquier incidencia legal.
-
-    tiene_credito_nafin: Indica si el solicitante ya tiene un crédito con Nafin.
-
-    detalle_empresas: Información sobre empresas relacionadas con el solicitante.
-
-    investigacion_previa: Resultado de investigaciones previas sobre el solicitante.
-
-    pep_involucrado: Indica si hay Personas Políticamente Expuestas involucradas.
-
-    detalles_cargos: Detalles sobre cargos políticos o legales del solicitante.
-
-    actividades_riesgo: Indica si el solicitante participa en actividades de alto riesgo.
-
-    calificacion_experta: Evaluación del crédito según expertos.
-
-    categorizacion_saras: Clasificación del crédito en el sistema SARAS.
-
-    anexo1: Información complementaria relevante.
-
-    anexo2: Información adicional aplicable. **
-
-La extracción debe ser precisa y mantener el contexto de cada entidad dentro del documento. La respuesta debe ser exclusivamente el JSON, sin explicaciones, comentarios ni texto adicional."""
-
-
-# Endpoint protegido
-@app.post("/extract_pdf/{tipo_doc}")
-async def extract_pdf(tipo_doc: str, file: UploadFile = File(...), _: None = Depends(validate_access_token)):
-    try:
-        # Guardar el archivo PDF subido temporalmente
-        pdf_path = os.path.join(UPLOAD_DIR, file.filename)
-        with open(pdf_path, "wb") as buffer:
-            buffer.write(await file.read())
-        
-        # Subir el archivo PDF a Gemini
-        uploaded_file = genai.upload_file(pdf_path)
-        
-        # Crear el prompt para la API de Gemini
-        prompt = EXTRACT_INFO_TEMPLATE.format(tipo_doc=tipo_doc)
-        
-        # Consultar la API de Gemini para analizar el archivo
-        model = genai.GenerativeModel(MODEL)
-        response = model.generate_content([prompt, uploaded_file])
-        
-        # Determinar si la clasificación es "True" o "False"
-        
-        return JSONResponse(content={
-            "tipo_doc": tipo_doc,
-            "extracted": response.text
-        })
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")
-    finally:
-        # Eliminar archivo en Gemini
-        try:
-            if 'uploaded_file' in locals():
-                uploaded_file.delete()
-        except Exception as gemini_error:
-            print(f"Error al eliminar archivo en Gemini: {gemini_error}")
-        
-        # Eliminar archivo local
-        try:
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
-        except Exception as local_error:
-            print(f"Error al eliminar archivo local: {local_error}")
-
 
 @app.post("/analyze_info")
 async def analyze_info(data: dict, _: None = Depends(validate_access_token)):
@@ -272,3 +155,57 @@ async def analyze_info(data: dict, _: None = Depends(validate_access_token)):
         raise HTTPException(status_code=500, detail=f"Error al procesar la solicitud: {str(e)}")
     
 ANALYZE_PROMPT = "Usa únicamente la información proporcionada para responder. No hagas suposiciones.\n\nContexto: {contexto}\nPregunta: {prompt}"
+
+
+class AnalyzePdfInput(BaseModel):
+    downloadUrl: str
+
+@app.post("/analyze_url_pdf/{tipo_doc}")
+async def analyze_pdf(
+    tipo_doc: str,
+    input: AnalyzePdfInput = Body(...),
+    _: None = Depends(validate_access_token)
+):
+    try:
+        # Descargar el PDF
+        response = httpx.get(input.downloadUrl, timeout=30)
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="No se pudo descargar el PDF.")
+
+        # Guardar en archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(response.content)
+            tmp_file_path = tmp_file.name
+
+        # Subir a Gemini
+        uploaded_file = genai.upload_file(tmp_file_path)
+
+        # Prompt y análisis
+        prompt = PROMPT_TEMPLATE.format(tipo_doc=tipo_doc)
+        model = genai.GenerativeModel(MODEL)
+        result = model.generate_content([prompt, uploaded_file])
+
+        is_valid = "True" in result.text
+        detected_type = result.text.strip()
+
+        return JSONResponse(content={
+            "tipo_doc": tipo_doc,
+            "esDocumentoValido": is_valid,
+            "documentoDetectado": detected_type,
+            "response": result.text
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+    finally:
+        try:
+            if 'uploaded_file' in locals():
+                uploaded_file.delete()
+        except Exception as gerr:
+            print(f"Error limpiando archivo Gemini: {gerr}")
+        try:
+            if 'tmp_file_path' in locals() and os.path.exists(tmp_file_path):
+                os.remove(tmp_file_path)
+        except Exception as ferr:
+            print(f"Error limpiando archivo local: {ferr}")
