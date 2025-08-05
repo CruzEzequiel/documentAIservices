@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from controllers import info_controller, pdf_controller
+from controllers import info_controller, pdf_controller, financial_info_controller
 
 # Cargar .env
 load_dotenv()
@@ -30,3 +30,4 @@ else:
 # Registrar routers
 app.include_router(info_controller.router)
 app.include_router(pdf_controller.router)
+app.include_router(financial_info_controller.router)
