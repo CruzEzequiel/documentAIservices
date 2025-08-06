@@ -20,7 +20,8 @@ if not API_KEY:
     raise ValueError("Define 'GEMINI_API_KEY' en .env")
 genai.configure(api_key=API_KEY)
 
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-2.5-flash-lite"
+
 PROMPT_TEMPLATE = """
 Dado el siguiente archivo PDF, determina si corresponde a un documento de tipo {tipo_doc}, considerando las posibles representaciones en México…
 - Cedulario de identificación fiscal: RFC o cédula.

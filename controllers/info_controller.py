@@ -12,7 +12,8 @@ if not API_KEY:
     raise ValueError("Define 'GEMINI_API_KEY' en .env")
 genai.configure(api_key=API_KEY)
 
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-2.5-flash-lite"
+
 ANALYZE_PROMPT = (
     "Usa únicamente la información proporcionada para responder.\n\n"
     "Contexto: {contexto}\nPregunta: {prompt}"

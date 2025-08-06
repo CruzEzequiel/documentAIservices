@@ -18,7 +18,7 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
     raise ValueError("Define 'GEMINI_API_KEY' en .env")
 genai.configure(api_key=API_KEY)
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 def extract_json(text):
     """
