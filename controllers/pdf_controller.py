@@ -3,7 +3,7 @@ import google.generativeai as genai
 from fastapi import APIRouter, UploadFile, File, Body, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from middlewares.auth_middleware import validate_access_token
+from middlewares.auth_middleware_old import validate_access_static_token
 from services.upload_file_service import save_upload_file, delete_local_file
 from services.download_service import download_pdf_from_url
 from schemas.analyze_schemas import AnalyzeUrlPdfInput
@@ -37,7 +37,7 @@ Si es **{tipo_doc}**, responde 'True'. Si no, responde en español con el tipo d
 async def analyze_pdf(
     tipo_doc: str,
     file: UploadFile = File(...),
-    _: None = Depends(validate_access_token)
+    _: None = Depends(validate_access_static_token)
 ):
     local_path = None
     uploaded_file = None
@@ -87,7 +87,7 @@ async def analyze_pdf(
 async def analyze_url_pdf(
     tipo_doc: str,
     input: AnalyzeUrlPdfInput = Body(...),
-    _: None = Depends(validate_access_token)
+    _: None = Depends(validate_access_static_token)
 ):
     temp_path = None
     uploaded_file = None
