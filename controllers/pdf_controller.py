@@ -20,113 +20,103 @@ if not API_KEY:
     raise ValueError("Define 'GEMINI_API_KEY' en .env")
 genai.configure(api_key=API_KEY)
 
-MODEL_NAME = "gemini-2.5-flash-lite"
+GEMINI_MODELS = [
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+]
 
+# Prompt mejorado: instrucción clara, salida binaria, contexto mexicano y ejemplos de falsos positivos
 PROMPT_TEMPLATE = """
-Dado el siguiente archivo PDF, determina si corresponde a un documento de tipo {tipo_doc}, considerando las posibles representaciones en México…
-- Cedulario de identificación fiscal: RFC o cédula.
-- Identificación del representante: INE o pasaporte.
-- Poder notarial.
-- Comprobante de domicilio fiscal.
-- CURP.
+Tu tarea es verificar si el archivo PDF corresponde a un documento de tipo **{tipo_doc}**, tal como se usa en México. 
+Evalúa cuidadosamente, incluso si el formato varía, pero asegúrate de evitar confusiones con documentos parecidos.
 
-Si es **{tipo_doc}**, responde 'True'. Si no, responde en español con el tipo detectado.
+**Instrucciones**:
+- Si el PDF corresponde a un **{tipo_doc}**, responde exactamente: `True`
+- Si no, responde SOLO con el tipo de documento detectado (ejemplo: "El documento corresponde a un INE", "El documento corresponde a una cédula fiscal", etc.)
+- No agregues explicaciones ni comentarios adicionales.
+- Si tienes dudas, responde con el tipo más probable.
+
+**Ejemplo de respuesta válida**:
+True
+o
+"El documento corresponde a un INE"
+o
+"El documento corresponde a una cédula fiscal"
 """
+
+def log(msg: str):
+    print(f"[ANALYZE_PDF] {msg}")
+
+async def analyze_file(tipo_doc: str, local_path: str) -> dict:
+    uploaded_file = None
+    try:
+        uploaded_file = genai.upload_file(local_path)
+        prompt = PROMPT_TEMPLATE.format(tipo_doc=tipo_doc)
+        last_error = None
+
+        for model_name in GEMINI_MODELS:
+            try:
+                model = genai.GenerativeModel(model_name)
+                log(f"Usando modelo {model_name} para '{tipo_doc}'...")
+                response = model.generate_content([prompt, uploaded_file])
+                text = response.text.strip()
+                is_valid = text.strip() == "True"
+                return {
+                    "tipo_doc": tipo_doc,
+                    "esDocumentoValido": is_valid,
+                    "documentoDetectado": text,
+                    "response": text,
+                }
+            except Exception as e:
+                last_error = str(e)
+                log(f"Error con modelo {model_name}: {e}")
+                continue
+
+        raise Exception(f"Todos los modelos fallaron. Último error: {last_error}")
+    finally:
+        if uploaded_file:
+            try:
+                uploaded_file.delete()
+            except Exception as e:
+                log(f"Error borrando archivo Gemini: {e}")
 
 @router.post("/analyze_pdf/{tipo_doc}")
 async def analyze_pdf(
     tipo_doc: str,
     file: UploadFile = File(...),
-    _: None = Depends(validate_access_static_token)
+    _: None = Depends(validate_access_static_token),
 ):
     local_path = None
-    uploaded_file = None
-
     try:
-        # 1) Guardar el UploadFile en disco
         local_path = await save_upload_file(file, UPLOAD_DIR)
-
-        # 2) Subir el PDF a GeminiAI
-        uploaded_file = genai.upload_file(local_path)
-
-        # 3) Generar prompt y llamar al modelo
-        prompt = PROMPT_TEMPLATE.format(tipo_doc=tipo_doc)
-        model = genai.GenerativeModel(MODEL_NAME)
-        resp = model.generate_content([prompt, uploaded_file])
-
-        text = resp.text.strip()
-        is_valid = "True" in text
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "tipo_doc": tipo_doc,
-                "esDocumentoValido": is_valid,
-                "documentoDetectado": text,
-                "response": text
-            }
-        )
+        result = await analyze_file(tipo_doc, local_path)
+        return JSONResponse(status_code=status.HTTP_200_OK, content=result)
     except HTTPException:
-        # Re-lanzar errores HTTP tal cual
         raise
     except Exception as e:
-        print("Error al analizar PDF:", e)
+        log(f"Error al analizar PDF: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # 4) Limpieza de recursos
-        if uploaded_file:
-            try:
-                uploaded_file.delete()
-            except Exception:
-                pass
         if local_path:
             await delete_local_file(local_path)
-
 
 @router.post("/analyze_url_pdf/{tipo_doc}")
 async def analyze_url_pdf(
     tipo_doc: str,
     input: AnalyzeUrlPdfInput = Body(...),
-    _: None = Depends(validate_access_static_token)
+    _: None = Depends(validate_access_static_token),
 ):
     temp_path = None
-    uploaded_file = None
-
     try:
-        # 1) Descargar el PDF desde la URL
         temp_path = download_pdf_from_url(input.downloadUrl)
-
-        # 2) Subir el PDF a GeminiAI
-        uploaded_file = genai.upload_file(temp_path)
-
-        # 3) Generar prompt y llamar al modelo
-        prompt = PROMPT_TEMPLATE.format(tipo_doc=tipo_doc)
-        model = genai.GenerativeModel(MODEL_NAME)
-        resp = model.generate_content([prompt, uploaded_file])
-
-        text = resp.text.strip()
-        is_valid = "True" in text
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "tipo_doc": tipo_doc,
-                "esDocumentoValido": is_valid,
-                "documentoDetectado": text,
-                "response": text
-            }
-        )
+        result = await analyze_file(tipo_doc, temp_path)
+        return JSONResponse(status_code=status.HTTP_200_OK, content=result)
     except HTTPException:
         raise
     except Exception as e:
-        print("Error al analizar PDF desde URL:", e)
+        log(f"Error al analizar PDF desde URL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # 4) Limpieza de recursos
-        if uploaded_file:
-            try:
-                uploaded_file.delete()
-            except Exception:
-                pass
         if temp_path:
             await delete_local_file(temp_path)
